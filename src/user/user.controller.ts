@@ -20,6 +20,10 @@ export class UserController {
   async create(@Body() user: User): Promise<User> {
     return this.userService.create(user);
   }
+  @Post('register')
+  async register(@Body() user: User): Promise<User> {
+    return this.userService.create(user);
+  }
 
   @Put(':id')
   async update(@Param('id') id: number, @Body() user: User): Promise<User> {
