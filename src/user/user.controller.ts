@@ -1,3 +1,4 @@
+// src/user/user.controller.ts
 import { Controller, Get, Post, Param, Body, Delete, Put, BadRequestException } from '@nestjs/common';
 import { UserService } from './user.service';
 import { User } from './user.entity';
@@ -32,10 +33,9 @@ export class UserController {
     if (isNaN(userId)) {
       throw new BadRequestException('Invalid ID');
     }
-    console.log(`Request to update user with ID: ${userId}`);
     return this.userService.update(userId, updateUserDto);
   }
-  
+
   @Delete(':id')
   async delete(@Param('id') id: string): Promise<void> {
     const userId = parseInt(id, 10);

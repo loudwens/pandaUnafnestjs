@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, ConflictException, InternalServerErrorException } from '@nestjs/common';
+// src/user/user.service.ts
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './user.entity';
@@ -44,33 +45,22 @@ export class UserService {
   }
 
   async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
-    console.log(`Attempting to update user with ID: ${id}`);
-  
     const user = await this.userRepository.findOne({
       where: { id: id },
     });
-    
     if (!user) {
-      console.error(`User with ID ${id} not found`);
       throw new NotFoundException(`User with ID ${id} not found`);
     }
-  
+
     if (updateUserDto.password) {
-      console.log(`Hashing new password`);
       updateUserDto.password = await bcrypt.hash(updateUserDto.password, 10);
     }
-  
-    console.log(`Updating user with new data: ${JSON.stringify(updateUserDto)}`);
+
     await this.userRepository.update(id, updateUserDto);
-    
-    const updatedUser = await this.userRepository.findOne({
+    return this.userRepository.findOne({
       where: { id: id },
     });
-  
-    console.log(`Updated user: ${JSON.stringify(updatedUser)}`);
-    return updatedUser;
   }
-  
 
   async delete(id: number): Promise<void> {
     const result = await this.userRepository.delete(id);
