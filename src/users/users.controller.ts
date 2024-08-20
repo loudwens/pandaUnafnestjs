@@ -1,45 +1,70 @@
-import { Body, ConflictException, Controller, Delete, Get, Param, Post, Put } from "@nestjs/common";
-import { UsersService } from "./users.service";
-import { CreateUserDto } from "./CreateUserDto";
-import { UserRole } from './user-role.enum';
+import { Controller, Post, Body, Param, Put, Delete, ConflictException, Get, ParseIntPipe, NotFoundException } from '@nestjs/common';
+import { UserService } from './users.service';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { ApiOperation, ApiTags, ApiResponse } from '@nestjs/swagger';
 
-import { UpdateUserDto } from "./UpdateUserDto";
-
-
-import { User } from "./user.entity";
-
+@ApiTags('Users')
 @Controller('users')
-export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+export class UserController {
+  constructor(private readonly userService: UserService) {}
 
   @Post()
-  async createUser(@Body() createUserDto: CreateUserDto) {
-    const { username, email, password, role } = createUserDto;
-
-    // Vérifier si le rôle est défini et valide, sinon utiliser UserRole.USER
-    const userRole: UserRole = role && Object.values(UserRole).includes(role as UserRole)
-      ? (role as UserRole)
-      : UserRole.USER;
-
-    return this.usersService.createUser(username, email, password, userRole);
+  @ApiOperation({ summary: 'Créer un nouvel utilisateur' })
+  @ApiResponse({ status: 201, description: 'Utilisateur créé avec succès.' })
+  @ApiResponse({ status: 409, description: 'Conflit : utilisateur déjà existant.' })
+  async create(@Body() createUserDto: CreateUserDto) {
+    try {
+      return await this.userService.create(createUserDto);
+    } catch (error) {
+      if (error instanceof ConflictException) {
+        throw new ConflictException(error.message);
+      }
+      throw error;
+    }
   }
+
   @Get()
-  async findAll(): Promise<User[]> {
-    return this.usersService.findAll();
+  @ApiOperation({ summary: 'Récupérer tous les utilisateurs' })
+  @ApiResponse({ status: 200, description: 'Liste des utilisateurs récupérée avec succès.' })
+  async getAllUsers() {
+    const users = await this.userService.findAll();
+    return users;
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: number): Promise<User> {
-    return this.usersService.findOne(id);
+  @ApiOperation({ summary: 'Récupérer un utilisateur par son ID' })
+  @ApiResponse({ status: 200, description: 'Utilisateur récupéré avec succès.' })
+  @ApiResponse({ status: 404, description: 'Utilisateur non trouvé.' })
+  async getUserById(@Param('id', ParseIntPipe) id: number) {
+    const user = await this.userService.findById(id);
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+    return user;
   }
 
   @Put(':id')
-  async update(@Param('id') id: number, @Body() updateUserDto: UpdateUserDto): Promise<User> {
-    return this.usersService.update(id, updateUserDto);
+  @ApiOperation({ summary: 'Mettre à jour un utilisateur' })
+  @ApiResponse({ status: 200, description: 'Utilisateur mis à jour avec succès.' })
+  @ApiResponse({ status: 404, description: 'Utilisateur non trouvé.' })
+  async updateUser(@Param('id', ParseIntPipe) id: number, @Body() updateUserDto: UpdateUserDto) {
+    const user = await this.userService.updateUser(id, updateUserDto);
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+    return user;
   }
 
   @Delete(':id')
-  async remove(@Param('id') id: number): Promise<void> {
-    return this.usersService.remove(id);
+  @ApiOperation({ summary: 'Supprimer un utilisateur' })
+  @ApiResponse({ status: 200, description: 'Utilisateur supprimé avec succès.' })
+  @ApiResponse({ status: 404, description: 'Utilisateur non trouvé.' })
+  async deleteUser(@Param('id', ParseIntPipe) id: number) {
+    const user = await this.userService.deleteUser(id);
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+    return { message: 'User successfully deleted' };
   }
 }

@@ -1,73 +1,90 @@
-import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Task } from './task.entity/task.entity';
-import { User } from '../users/user.entity';
-import { CreateTaskDto } from './create-task.dto';
-import { UpdateTaskDto } from './update-task.dto';
-import { TaskStatus } from './task-status.enum'; // Assurez-vous que vous avez défini cet enum
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { PrismaService } from 'prisma/prisma.service';
+import { Task } from '@prisma/client';
+import { CreateTaskDto } from './dto/create-task.dto';
+import { UpdateTaskDto } from './dto/update-task.dto';
 
 @Injectable()
 export class TasksService {
-  constructor(
-    @InjectRepository(Task)
-    private tasksRepository: Repository<Task>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  async create(createTaskDto: CreateTaskDto): Promise<Task> {
-    // Crée un objet Task en utilisant le DTO
-    const newTask = this.tasksRepository.create(createTaskDto);
-    // Sauvegarde de l'objet Task
-    return this.tasksRepository.save(newTask);
+  async createTask(createTaskDto: CreateTaskDto): Promise<{ message: string; task: Task }> {
+    const { title, description, status, projectName, username } = createTaskDto;
+
+    if (!username) {
+      throw new BadRequestException('Username must be provided');
+    }
+
+    const project = await this.prisma.project.findFirst({
+      where: { name: projectName },
+    });
+
+    if (!project) {
+      throw new NotFoundException(`Project with name ${projectName} not found`);
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { username },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with username ${username} not found`);
+    }
+
+    const task = await this.prisma.task.create({
+      data: {
+        title,
+        description,
+        status,
+        projectId: project.id,
+        userId: user.id,
+      },
+    });
+
+    return { message: 'Task successfully created', task };
   }
 
-  async findAll(): Promise<Task[]> {
-    return this.tasksRepository.find();
+  async getAllTasks(): Promise<{ message: string; tasks: Task[] }> {
+    const tasks = await this.prisma.task.findMany({
+      include: {
+        user: true,     
+        project: true,  
+      },
+    });
+
+    return { message: 'Tasks retrieved successfully', tasks };
   }
 
-  async findOne(id: number): Promise<Task> {
-    const task = await this.tasksRepository.findOne({
+  async getTaskById(id: number): Promise<{ message: string; task: Task }> {
+    const task = await this.prisma.task.findUnique({
       where: { id },
-      relations: ['assignedTo'], // Assurez-vous que la relation est correcte
+      include: {
+        user: true,      
+        project: true, 
+      },
     });
+
     if (!task) {
-      throw new Error('Task not found');
+      throw new NotFoundException(`Task with ID ${id} not found`);
     }
-    return task;
+
+    return { message: 'Task retrieved successfully', task };
   }
 
-  async remove(id: number): Promise<void> {
-    await this.tasksRepository.delete(id);
-  }
-
-  async assignTask(taskId: number, user: User): Promise<Task> {
-    const task = await this.tasksRepository.findOne({
-      where: { id: taskId },
-      relations: ['assignedTo'],
+  async updateTask(id: number, updateTaskDto: UpdateTaskDto): Promise<{ message: string; task: Task }> {
+    const task = await this.prisma.task.update({
+      where: { id },
+      data: updateTaskDto,
     });
-    if (!task) throw new Error('Task not found');
-    task.assignedTo = user; // Assurez-vous que la relation est correctement définie
-    return this.tasksRepository.save(task);
+
+    return { message: 'Task successfully updated', task };
   }
 
-  async update(id: number, updateTaskDto: UpdateTaskDto): Promise<Task> {
-    await this.tasksRepository.update(id, updateTaskDto);
-    return this.tasksRepository.findOneBy({ id });
-  }
+  async deleteTask(id: number): Promise<{ message: string }> {
+    await this.prisma.task.delete({
+      where: { id },
+    });
 
-  async updateStatus(id: number, status: TaskStatus): Promise<Task> {
-    await this.tasksRepository.update(id, { status });
-    return this.tasksRepository.findOneBy({ id });
+    return { message: 'Task successfully deleted' };
   }
-  async updateTaskStatus(id: number, status: string): Promise<void> {
-    try {
-      const result = await this.tasksRepository.update(id, { status });
-      if (result.affected === 0) {
-        throw new NotFoundException(`Task with ID ${id} not found`);
-      }
-    } catch (error) {
-      throw new InternalServerErrorException('Failed to update task status');
-    }
-  }
-  
 }

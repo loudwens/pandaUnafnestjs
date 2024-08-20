@@ -1,47 +1,42 @@
-import { Controller, Get, Post, Body, Param, Delete, Patch } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
 import { TasksService } from './tasks.service';
-import { Task } from './task.entity/task.entity';
-import { UpdateTaskDto } from './update-task.dto';
-import { TaskStatus } from './task-status.enum';
-import { User } from 'src/users/user.entity';
+import { CreateTaskDto } from './dto/create-task.dto';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { UpdateTaskDto } from './dto/update-task.dto';
 
+@ApiTags('Taches')
 @Controller('tasks')
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 
   @Post()
-  create(@Body() createTaskDto: any): Promise<Task> {
-    // Assurez-vous que 'createTaskDto' est correctement typé
-    return this.tasksService.create(createTaskDto);
+  @ApiOperation({ summary: 'ajouter un tache tâches' })
+  async createTask(@Body() createTaskDto: CreateTaskDto) {
+    return this.tasksService.createTask(createTaskDto);
   }
 
   @Get()
-  findAll(): Promise<Task[]> {
-    return this.tasksService.findAll();
+  @ApiOperation({ summary: 'Obtenir toutes les tâches' })
+  async getAllTasks() {
+    return this.tasksService.getAllTasks();
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string): Promise<Task> {
-    return this.tasksService.findOne(+id);
+  @ApiOperation({ summary: 'Obtenir une tâche par ID' })
+  @ApiResponse({ status: 404, description: 'Tâche non trouvée' })
+  async getTaskById(@Param('id') id: number) {
+    return this.tasksService.getTaskById(id);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateTaskDto: UpdateTaskDto): Promise<Task> {
-    return this.tasksService.update(+id, updateTaskDto);
+  @Put(':id')
+  @ApiOperation({ summary: 'Mettre à jour une tâche par son ID' })
+  async updateTask(@Param('id') id: number, @Body() updateTaskDto: UpdateTaskDto) {
+    return this.tasksService.updateTask(id, updateTaskDto);
   }
-
-  @Patch(':id/status')
-  updateStatus(@Param('id') id: string, @Body('status') status: TaskStatus): Promise<Task> {
-    return this.tasksService.updateStatus(+id, status);
-  }
-
   @Delete(':id')
-  remove(@Param('id') id: string): Promise<void> {
-    return this.tasksService.remove(+id);
-  }
-
-  @Post(':id/assign')
-  assignTask(@Param('id') id: string, @Body() user: User): Promise<Task> {
-    return this.tasksService.assignTask(+id, user);
+  @ApiOperation({ summary: 'Supprimer une tâche par son ID' })
+  @ApiResponse({ status: 200, description: 'Tâche supprimée' })
+  async deleteTask(@Param('id') id: number) {
+    return this.tasksService.deleteTask(id);
   }
 }

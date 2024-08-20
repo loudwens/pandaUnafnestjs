@@ -1,60 +1,112 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from './user.entity';
-import { CreateUserDto } from './CreateUserDto';
-import { UpdateUserDto } from './UpdateUserDto';
-import * as bcrypt from 'bcrypt';
-import { UserRole } from './user-role.enum';
+import { ConflictException, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { PrismaService } from 'prisma/prisma.service';
+import { CreateUserDto } from './dto/create-user.dto';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 @Injectable()
-export class UsersService {
-  constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
-  ) {}
+export class UserService {
+  constructor(private prisma: PrismaService) {}
 
-  async createUser(username: string, email: string, password: string, role: UserRole = UserRole.USER): Promise<User> {
-    const newUser = this.userRepository.create({
-      username,
-      email,
-      password,
-      role,
+  async findByEmail(email: string) {
+    return this.prisma.user.findUnique({ where: { email } });
+  }
+  async findById(id: number) {
+    return this.prisma.user.findUnique({ where: { id } });
+  }
+
+
+  async create(createUserDto: CreateUserDto) {
+    const { name, email, phone, password, role } = createUserDto;
+
+    // Vérifiez si un utilisateur avec le même username existe déjà
+    const existingUserByUsername = name
+      ? await this.prisma.user.findUnique({
+          where: { username: name },
+        })
+      : null;
+
+    // Vérifiez si un utilisateur avec le même email existe déjà
+    const existingUserByEmail = await this.prisma.user.findUnique({
+      where: { email },
     });
 
-    return this.userRepository.save(newUser);
-  }
-  
-  async findAll(): Promise<User[]> {
-    return this.userRepository.find();
+    // Vérifiez si un utilisateur avec le même phone existe déjà
+    const existingUserByPhone = phone
+      ? await this.prisma.user.findFirst({
+          where: { phone },
+        })
+      : null;
+
+    // Lancez une exception si un utilisateur existe déjà avec l'un des critères
+    if (existingUserByUsername) {
+      throw new ConflictException(`Username ${name} is already taken`);
+    }
+    if (existingUserByEmail) {
+      throw new ConflictException(`Email ${email} is already in use`);
+    }
+    if (existingUserByPhone) {
+      throw new ConflictException(`Phone number ${phone} is already in use`);
+    }
+
+    // Créez le nouvel utilisateur si toutes les vérifications passent
+    return this.prisma.user.create({
+      data: {
+        username: name,
+        email,
+        password,
+        role,
+        phone: phone ?? null,  // Utilisez null si phone n'est pas fourni
+      },
+    });
   }
 
-  async findOne(id: number): Promise<User> {
-    const user = await this.userRepository.findOneBy({ id });
-    if (!user) {
-      throw new NotFoundException(`User with id ${id} not found`);
-    }
-    return user;
+  async findAll() {
+    return this.prisma.user.findMany();
   }
 
-  async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
-    await this.userRepository.update(id, updateUserDto);
-    const updatedUser = await this.userRepository.findOneBy({ id });
-    if (!updatedUser) {
-      throw new NotFoundException(`User with id ${id} not found`);
+  async updateUser(id: number, updateUserDto: { email?: string; password?: string; username?: string; phone?: string; role?: string }) {
+    try {
+      // Vérifiez si l'utilisateur existe avant de tenter une mise à jour
+      const user = await this.prisma.user.findUnique({ where: { id } });
+      if (!user) {
+        throw new NotFoundException(`User with ID ${id} not found`);
+      }
+
+      return this.prisma.user.update({
+        where: { id },
+        data: updateUserDto,
+      });
+    } catch (error) {
+      if (error instanceof PrismaClientKnownRequestError) {
+        // Gérez les erreurs Prisma spécifiques
+        throw new BadRequestException('Invalid data provided for user update');
+      }
+      throw error;
     }
-    return updatedUser;
   }
 
-  async remove(id: number): Promise<void> {
-    const deleteResult = await this.userRepository.delete(id);
-    if (!deleteResult.affected) {
-      throw new NotFoundException(`User with id ${id} not found`);
+  async deleteUser(id: number) {
+    try {
+      // Assurez-vous que id est un nombre
+      if (typeof id !== 'number' || isNaN(id)) {
+        throw new BadRequestException('ID must be a valid number.');
+      }
+
+      // Vérifiez si l'utilisateur existe avant de tenter une suppression
+      const user = await this.prisma.user.findUnique({ where: { id } });
+      if (!user) {
+        throw new NotFoundException(`User with ID ${id} not found`);
+      }
+
+      return await this.prisma.user.delete({
+        where: { id },
+      });
+    } catch (error) {
+      if (error instanceof PrismaClientKnownRequestError) {
+        // Gérez les erreurs Prisma spécifiques
+        throw new BadRequestException('Error occurred while deleting user');
+      }
+      throw error;
     }
   }
-  
-  async findByUsername(username: string): Promise<User | undefined> {
-    return this.userRepository.findOne({ where: { username } });
-  }
-  
 }

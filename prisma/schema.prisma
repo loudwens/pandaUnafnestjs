@@ -1,0 +1,53 @@
+// This is your Prisma schema file
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             Int              @id @default(autoincrement())
+  username       String           @unique // Utilisation de username au lieu de name
+  email          String           @unique
+  password       String
+  role           String
+  phone          String?  
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  // Relations
+  projectMembers ProjectMember[]  // Relation avec ProjectMember
+  tasks          Task[]           // Relation avec Task
+}
+
+model Project {
+  id             Int              @id @default(autoincrement())
+  name           String           // Utilisation de name au lieu de username
+  description    String?
+  tasks          Task[]           // Un projet peut avoir plusieurs tâches
+  // Relations
+  projectMembers ProjectMember[]  // Relation avec ProjectMember
+}
+
+model ProjectMember {
+  id        Int    @id @default(autoincrement())
+  userId    Int
+  projectId Int
+  role      String
+  user      User   @relation(fields: [userId], references: [id])
+  project   Project @relation(fields: [projectId], references: [id])
+}
+
+
+model Task {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?  // Champ optionnel
+  status      String
+  userId      Int?
+  projectId   Int?
+  user        User?    @relation(fields: [userId], references: [id])     // Relation avec User
+  project     Project? @relation(fields: [projectId], references: [id])  // Relation avec Project
+}
