@@ -128,7 +128,32 @@ export class ProjectsService {
 
     return project.projectMembers;
   }
+  
+  async getProjectsByUsername(username: string) {
+    // Trouver l'utilisateur avec les projets auxquels il participe
+    const user = await this.prisma.user.findUnique({
+      where: { username },
+      include: {
+        projectMembers: {
+          include: {
+            project: true, // Inclure les détails du projet
+          },
+        },
+      },
+    });
 
+    if (!user) {
+      throw new NotFoundException(`User with username ${username} not found`);
+    }
+
+    // Extraire les projets avec les noms de projet et les noms d'utilisateur
+    const projects = user.projectMembers.map(member => ({
+      projectName: member.project.name, // Nom du projet
+      username: user.username,          // Nom de l'utilisateur
+    }));
+
+    return projects;
+  }
   // Supprimer un membre d'un projet
   async removeMemberFromProject(projectName: string, username: string): Promise<ProjectMember> {
     // Rechercher le projet par son nom
